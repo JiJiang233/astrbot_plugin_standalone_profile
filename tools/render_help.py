@@ -14,6 +14,7 @@ except Exception:  # 独立运行渲染脚本时 AstrBot 可能不在 import pat
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "assets" / "stpro_help.png"
+PRIMARY_FONT = ROOT / "font" / "MiSans-Medium.ttf"
 BUILTIN_FONT = ROOT / "assets" / "fonts" / "NotoSansSC-VF.ttf"
 WIDTH = 1600
 MARGIN = 64
@@ -37,6 +38,7 @@ _DATA_DIR = (
     Path(get_astrbot_data_path()) if get_astrbot_data_path else ROOT.parent / "data"
 )
 FONT_CANDIDATES = [
+    PRIMARY_FONT,
     BUILTIN_FONT,
     _DATA_DIR / "font.ttf",
     _DATA_DIR / "font-bold.ttf",
@@ -220,8 +222,9 @@ def _font_path() -> Path:
 
 
 def font(size: int, *, bold: bool = False) -> ImageFont.FreeTypeFont:
-    loaded = ImageFont.truetype(str(_font_path()), size=size)
-    if BUILTIN_FONT.is_file():
+    font_path = _font_path()
+    loaded = ImageFont.truetype(str(font_path), size=size)
+    if font_path == BUILTIN_FONT:
         try:
             loaded.set_variation_by_name("Bold" if bold else "Regular")
         except (AttributeError, OSError, ValueError):
