@@ -4,6 +4,13 @@
 
 > 新建档案的 Provider 和原生配置文件统一显示为 `STPRO / QQ号 / 配置名`；旧版 `stpro_<uuid>` Provider 继续兼容。
 
+## 开源许可
+
+插件代码采用 [MIT License](LICENSE) 发布。帮助导航图使用随插件提供的
+`font/MiSans-Medium.ttf` 渲染；MiSans 字体版权归小米科技有限责任公司所有，
+字体文件适用其独立的[知识产权许可协议](font/README.md)，不属于本项目 MIT
+许可的授权范围。
+
 ## 核心原则
 
 - **完整复制插件设置中的“对齐默认配置”** 创建原生配置文件，保留人格、知识库、插件开关等字段，只把默认聊天 Provider 改为档案自己的 STPRO Provider。该设置直接从当前 AstrBot 原生配置列表下拉选择，默认值为 `default`，只影响之后新建的档案。
@@ -92,31 +99,6 @@ Endpoint 只需填到域名，插件会自动归一化（不足则补 `/v1`，�
 - 首次失败只记录，达到阈值后通知一次，持续失败不刷屏，恢复通知一次；
 - 401/403 立即私聊所有者，群内只发脱敏提示；
 - 未绑定群时只通知所有者。
-
-## 测试
-
-不需要 AstrBot 运行时和网络：
-
-```bash
-# 单元/流程：原生命令参数、原生配置复制、路由安全、管理员优先、掩码与数据最小化（87 项）
-python3 data/plugins/astrbot_plugin_standalone_profile/tests/run_tests.py
-
-# 验收：设计文档中的命令、管理员优先、安全与隐私序列
-python3 data/plugins/astrbot_plugin_standalone_profile/tests/acceptance.py
-```
-
-离线测试已全部通过。真实 AstrBot 环境仍需确认原生配置在 WebUI 可见、会话配置路由展示正确，以及动态配置的 PipelineScheduler 已装载。探针见 `tests/probes.py`。
-
-```python
-import data.plugins.astrbot_plugin_standalone_profile.tests.probes as p
-
-await p.run_probes(
-    plugin,
-    owner_key="aiocqhttp:<用户号>",
-    profile_name="<测试配置名>",
-    test_group_umo="aiocqhttp:GroupMessage:<测试群号>",
-)
-```
 
 ## 卸载
 
