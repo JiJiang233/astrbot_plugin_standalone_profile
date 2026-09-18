@@ -116,6 +116,15 @@ class ProfileService:
         name = self.validate_name(name)
         endpoint = validate_endpoint(endpoint)
         await self.assert_not_duplicated(owner_key, name)
+        try:
+            alignment_config_id, _, alignment_persona_id = (
+                self.config_bridge.alignment_baseline()
+            )
+        except ValueError as exc:
+            raise StproError(
+                "local",
+                f"插件设置中的对齐默认配置不可用：{exc}",
+            ) from exc
 
         models = await self.client.fetch_models(endpoint, api_key)
 
@@ -134,6 +143,7 @@ class ProfileService:
                 owner_id,
                 name,
                 provider_id,
+                alignment_config_id,
             )
         except Exception as exc:
             logger.error(f"[stpro] 创建 AstrBot 配置文件失败，回滚 Provider: {exc}")
@@ -159,6 +169,8 @@ class ProfileService:
             config_status="unconfigured",
             created_at=utc_now_iso(),
             selected_persona_id=native_config.persona_id or "default",
+            alignment_config_id=alignment_config_id,
+            alignment_persona_id=alignment_persona_id,
         )
 
         try:

@@ -1,4 +1,10 @@
 {
+  "alignment_config_id": {
+    "description": "对齐默认配置",
+    "type": "string",
+    "hint": "新建档案会完整复制此 AstrBot 原生配置，再把默认聊天 Provider 替换为档案自己的 STPRO Provider。填写配置 ID；default 表示全局默认配置。只影响之后新建的档案。",
+    "default": "default"
+  },
   "monitor": {
     "description": "后台监控",
     "type": "object",

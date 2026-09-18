@@ -94,10 +94,17 @@ class PersonaService:
                 f"档案「{profile.name}」中已经有名为「{value}」的人格。"
             )
         if self.normalize_name(value) == self.normalize_name(
-            self.config_bridge.default_persona_id()
+            self._alignment_persona_id(profile)
         ):
-            raise ConflictError("该名称与 default 配置当前人格重名，请换一个名称。")
+            raise ConflictError("该名称与档案的对齐配置人格重名，请换一个名称。")
         return value
+
+    def _alignment_persona_id(self, profile: ProfileRecord) -> str:
+        if profile.alignment_persona_id:
+            return profile.alignment_persona_id
+        return self.config_bridge.default_persona_id(
+            profile.alignment_config_id or "default"
+        )
 
     async def _mark_admin_managed(self, profile_id: str) -> None:
         def _mutate(data: dict[str, Any]) -> None:
@@ -145,12 +152,12 @@ class PersonaService:
         refreshed = await self.store.get_profile(profile.profile_id) or profile
         native = self.config_bridge.inspect(refreshed.astrbot_config_id)
         selected = native.persona_id or refreshed.selected_persona_id or "default"
-        default_id = self.config_bridge.default_persona_id()
+        default_id = self._alignment_persona_id(refreshed)
         result = [
             PersonaListItem(
                 name=default_id,
                 persona_id=default_id,
-                source="default 配置",
+                source="对齐配置",
                 selected=selected == default_id,
             )
         ]
@@ -245,7 +252,7 @@ class PersonaService:
                 profile.profile_id
             )
             owned = await self._owned_by_name(current.profile_id, value)
-            default_id = self.config_bridge.default_persona_id()
+            default_id = self._alignment_persona_id(current)
             if owned is not None:
                 persona_id = owned.astrbot_persona_id
                 visible_name = owned.name
@@ -302,7 +309,7 @@ class PersonaService:
                     "其他 AstrBot 配置当前正在使用这个人格。请先让管理员切换这些"
                     "配置的人格，再删除。"
                 )
-            default_id = self.config_bridge.default_persona_id()
+            default_id = self._alignment_persona_id(current)
             if selected == record.astrbot_persona_id:
                 fallback = default_id
                 await self.config_bridge.set_persona(

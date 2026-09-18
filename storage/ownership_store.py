@@ -25,7 +25,7 @@ from typing import Any
 
 from astrbot.api import logger
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 BACKUP_SUFFIX = ".bak"
 TMP_SUFFIX = ".tmp"
@@ -73,6 +73,8 @@ class ProfileRecord:
     last_notification_kind: str | None = None
     created_at: str = ""
     selected_persona_id: str | None = None
+    alignment_config_id: str | None = None
+    alignment_persona_id: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -106,6 +108,8 @@ class ProfileRecord:
             },
             "created_at": self.created_at,
             "selected_persona_id": self.selected_persona_id,
+            "alignment_config_id": self.alignment_config_id,
+            "alignment_persona_id": self.alignment_persona_id,
         }
 
     @classmethod
@@ -138,6 +142,8 @@ class ProfileRecord:
             last_notification_kind=monitor.get("last_notification_kind"),
             created_at=raw.get("created_at", ""),
             selected_persona_id=raw.get("selected_persona_id"),
+            alignment_config_id=raw.get("alignment_config_id"),
+            alignment_persona_id=raw.get("alignment_persona_id"),
         )
 
 
@@ -378,6 +384,11 @@ class OwnershipStore:
             for profile in (raw.get("profiles") or {}).values():
                 if isinstance(profile, dict):
                     profile.setdefault("selected_persona_id", None)
+        if from_version < 4:
+            for profile in (raw.get("profiles") or {}).values():
+                if isinstance(profile, dict):
+                    profile.setdefault("alignment_config_id", None)
+                    profile.setdefault("alignment_persona_id", None)
         return raw
 
     # ---------- 写入 ----------

@@ -50,9 +50,13 @@ class AstrBotProfileBridge:
     def __init__(
         self,
         context: Any,
+        alignment_config_id: str = "default",
     ) -> None:
         self.context = context
         self.manager = context.astrbot_config_mgr
+        self.alignment_config_id = (
+            str(alignment_config_id or "default").strip() or "default"
+        )
 
     def _dashboard_services(self) -> Any:
         """取得当前进程已经创建的 Dashboard 服务容器。
@@ -251,13 +255,28 @@ class AstrBotProfileBridge:
             fingerprint=self._managed_fingerprint(runner_type, provider_id),
         )
 
-    def default_persona_id(self) -> str:
-        config = self.manager.default_conf
+    def alignment_baseline(
+        self,
+        config_id: str | None = None,
+    ) -> tuple[str, dict[str, Any], str]:
+        """返回新档案应复制的原生配置及其当前人格。"""
+        source_id = str(config_id or self.alignment_config_id or "default").strip()
+        source_id = source_id or "default"
+        if source_id == "default":
+            config = getattr(self.manager, "default_conf", None)
+        else:
+            confs = getattr(self.manager, "confs", {})
+            config = confs.get(source_id) if isinstance(confs, dict) else None
+        if not isinstance(config, dict):
+            raise ValueError(f"对齐默认配置不存在：{source_id}")
         agent_runner = config.get("agent_runner") or {}
         persona_id = ((agent_runner.get("config") or {}).get("persona") or {}).get(
             "persona_id"
         )
-        return str(persona_id or "default")
+        return source_id, config, str(persona_id or "default")
+
+    def default_persona_id(self, config_id: str | None = None) -> str:
+        return self.alignment_baseline(config_id)[2]
 
     def persona_references(self, persona_id: str) -> list[str]:
         """返回所有当前引用指定人格的原生配置 ID。"""
@@ -293,9 +312,11 @@ class AstrBotProfileBridge:
         owner_id: str,
         profile_name: str,
         provider_id: str,
+        alignment_config_id: str | None = None,
     ) -> NativeProfileSnapshot:
-        # 必须复制当前完整 default，而不是 AstrBot 的静态空白模板。
-        config = copy.deepcopy(dict(self.manager.default_conf))
+        # 完整复制管理员指定的对齐配置，而不是 AstrBot 的静态空白模板。
+        _, baseline, _ = self.alignment_baseline(alignment_config_id)
+        config = copy.deepcopy(dict(baseline))
         self._model_config(config)["provider_id"] = provider_id
         config_id = await self._create_config_profile(
             name=self.display_name(owner_id, profile_name),

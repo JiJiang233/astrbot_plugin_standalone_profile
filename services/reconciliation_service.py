@@ -122,6 +122,7 @@ class ReconciliationService:
                         self._owner_display_id(record.owner_key),
                         record.name,
                         record.provider_id,
+                        record.alignment_config_id or "default",
                     )
                 except Exception as exc:
                     report.pending.append(record.profile_id)
@@ -129,7 +130,11 @@ class ReconciliationService:
                         f"[stpro] 旧档案暂未迁移到 WebUI profile={record.profile_id}: {exc}"
                     )
                     continue
-                await self._save_native_profile(record.profile_id, native)
+                await self._save_native_profile(
+                    record.profile_id,
+                    native,
+                    record.alignment_config_id or "default",
+                )
                 report.native_profiles_created.append(record.profile_id)
                 record = await self.store.get_profile(record.profile_id) or record
 
@@ -200,7 +205,16 @@ class ReconciliationService:
 
         await self.store.transaction(_mutate)
 
-    async def _save_native_profile(self, profile_id: str, native: Any) -> None:
+    async def _save_native_profile(
+        self,
+        profile_id: str,
+        native: Any,
+        alignment_config_id: str,
+    ) -> None:
+        alignment_persona_id = self.config_bridge.default_persona_id(
+            alignment_config_id
+        )
+
         def _mutate(data: dict[str, Any]) -> None:
             raw = data["profiles"].get(profile_id)
             if raw is None:
@@ -213,6 +227,9 @@ class ReconciliationService:
                     "fingerprint": native.fingerprint,
                 }
             )
+            raw["alignment_config_id"] = alignment_config_id
+            raw["alignment_persona_id"] = alignment_persona_id
+            raw["selected_persona_id"] = native.persona_id or alignment_persona_id
 
         await self.store.transaction(_mutate)
 

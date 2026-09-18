@@ -39,6 +39,7 @@ _astrbot_stub.build(str(DATA_DIR / "plugin_data"))
 
 from astrbot.core.platform.message_type import MessageType  # noqa: E402
 from astrbot_plugin_standalone_profile.main import StproPlugin  # noqa: E402
+from astrbot_plugin_standalone_profile.utils.errors import StproError  # noqa: E402
 
 SP = _astrbot_stub.sp
 CHAT_RULE_KEY = "provider_perf_chat_completion"
@@ -617,6 +618,107 @@ async def test_full_flow() -> None:
     await plugin.terminate()
 
 
+async def test_alignment_config() -> None:
+    """新档案复制插件设置指定的原生配置，而不是固定复制 default。"""
+    print("\n[2.1] 对齐默认配置")
+    ctx = FakeContext()
+    aligned = copy.deepcopy(ctx.default_config)
+    aligned["persona"] = {"default": "aligned_persona_marker"}
+    aligned["knowledge_base"] = {"enabled": False, "ids": ["aligned-kb"]}
+    aligned["plugins"] = {"disabled": ["aligned_plugin"]}
+    aligned["agent_runner"]["config"]["persona"]["persona_id"] = "aligned-persona"
+    ctx.native_configs["aligned"] = aligned
+    ctx.config_names["aligned"] = "用于新档案的基准"
+    ctx.astrbot_config_mgr.abconf_data["aligned"] = {
+        "name": "用于新档案的基准",
+        "path": "abconf_aligned.json",
+    }
+
+    plugin = StproPlugin(
+        ctx,
+        {
+            "monitor": {"enable": False},
+            "alignment_config_id": "aligned",
+        },
+    )
+    plugin.client = FakeModelClient()
+    plugin.profile_service.client = plugin.client
+    plugin.monitor.client = plugin.client
+    await plugin.initialize()
+    record, _ = await plugin.profile_service.create_profile(
+        "aiocqhttp:10001",
+        "aiocqhttp:FriendMessage:10001",
+        "对齐测试",
+        "https://api.example.com/v1",
+        "sk-alignment-test",
+    )
+    native = ctx.native_configs[record.astrbot_config_id]
+    check(
+        "新配置复制指定配置的人格字段",
+        native["persona"] == aligned["persona"],
+    )
+    check(
+        "新配置复制指定配置的知识库",
+        native["knowledge_base"] == aligned["knowledge_base"],
+    )
+    check(
+        "新配置复制指定配置的插件设置",
+        native["plugins"] == aligned["plugins"],
+    )
+    check(
+        "新配置仍替换为自己的 STPRO Provider",
+        native["agent_runner"]["config"]["model"]["provider_id"] == record.provider_id,
+    )
+    check("档案记录对齐配置 ID", record.alignment_config_id == "aligned")
+    check(
+        "档案记录对齐配置人格",
+        record.alignment_persona_id == "aligned-persona",
+    )
+    personas = await plugin.persona_service.list_personas(record)
+    check(
+        "人格回退使用档案创建时的对齐人格",
+        personas[0].persona_id == "aligned-persona"
+        and personas[0].source == "对齐配置",
+    )
+    plugin.store._data = None
+    await plugin.terminate()
+
+    bad_ctx = FakeContext()
+    bad_plugin = StproPlugin(
+        bad_ctx,
+        {
+            "monitor": {"enable": False},
+            "alignment_config_id": "missing-config",
+        },
+    )
+    bad_plugin.client = FakeModelClient()
+    bad_plugin.profile_service.client = bad_plugin.client
+    bad_plugin.monitor.client = bad_plugin.client
+    await bad_plugin.initialize()
+    error = None
+    try:
+        await bad_plugin.profile_service.create_profile(
+            "aiocqhttp:10001",
+            "aiocqhttp:FriendMessage:10001",
+            "无效对齐",
+            "https://api.example.com/v1",
+            "sk-alignment-test",
+        )
+    except StproError as exc:
+        error = str(exc)
+    check(
+        "不存在的对齐配置会明确拒绝创建",
+        bool(error) and "missing-config" in error,
+        str(error),
+    )
+    check(
+        "对齐配置无效时不会创建 Provider",
+        bad_ctx.provider_manager.providers_config == [],
+    )
+    bad_plugin.store._data = None
+    await bad_plugin.terminate()
+
+
 async def test_admin_priority() -> None:
     """管理员接管：插件必须让位且不改回。"""
     print("\n[3] 管理员优先")
@@ -1046,6 +1148,7 @@ async def run_all() -> int:
         test_command_signatures,
         test_self_message_ignored,
         test_full_flow,
+        test_alignment_config,
         test_admin_priority,
         test_masking,
         test_endpoint_normalize,

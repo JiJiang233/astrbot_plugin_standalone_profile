@@ -142,7 +142,13 @@ class StproPlugin(Star):
             _plugin_data_dir() / "ownership.json",
         )
         self.bridge = ProviderBridge(context, store=self.store)
-        self.config_bridge = AstrBotProfileBridge(context)
+        alignment_config_id = str(
+            self.conf.get("alignment_config_id") or "default"
+        ).strip()
+        self.config_bridge = AstrBotProfileBridge(
+            context,
+            alignment_config_id=alignment_config_id or "default",
+        )
         self.membership = OneBotMembershipChecker(context)
 
         monitor_conf = self.conf.get("monitor") or {}
