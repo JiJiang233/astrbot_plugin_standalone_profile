@@ -135,7 +135,7 @@ class StproPlugin(Star):
 
     def __init__(self, context: Context, config: dict | None = None) -> None:
         super().__init__(context)
-        self.conf = config or {}
+        self.conf = config if config is not None else {}
 
         self.locks = LockManager()
         self.store = OwnershipStore(
@@ -149,6 +149,7 @@ class StproPlugin(Star):
             context,
             alignment_config_id=alignment_config_id or "default",
         )
+        self._refresh_alignment_config_options()
         self.membership = OneBotMembershipChecker(context)
 
         monitor_conf = self.conf.get("monitor") or {}
@@ -253,6 +254,7 @@ class StproPlugin(Star):
         logger.info(f"[stpro] 外部改写会话规则 umo={umo} provider={provider_id}")
         try:
             await self.reconciler.reconcile()
+            self._refresh_alignment_config_options()
         except Exception as exc:
             logger.warning(f"[stpro] 外部规则变更后对账失败: {exc}")
 
@@ -271,6 +273,7 @@ class StproPlugin(Star):
 
         try:
             report = await self.reconciler.reconcile()
+            self._refresh_alignment_config_options()
             logger.info(f"[stpro] 启动对账完成: {report.as_text()}")
         except Exception as exc:
             logger.error(f"[stpro] 启动对账失败: {exc}")
@@ -283,6 +286,7 @@ class StproPlugin(Star):
         # 只有完整对账结束后才启动定时监控
         await self.monitor.start()
         self._spawn(self._sweep_loop())
+        self._spawn(self._config_options_loop())
         self._spawn(self._reconcile_loop())
 
     async def terminate(self) -> None:
@@ -326,10 +330,21 @@ class StproPlugin(Star):
             try:
                 await asyncio.sleep(max(60, self._reconcile_interval))
                 await self.reconciler.reconcile()
+                self._refresh_alignment_config_options()
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
                 logger.warning(f"[stpro] 周期对账失败: {exc}")
+
+    async def _config_options_loop(self) -> None:
+        while True:
+            try:
+                await asyncio.sleep(30)
+                self._refresh_alignment_config_options()
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logger.warning(f"[stpro] 刷新对齐配置列表失败: {exc}")
 
     # ---------- 命令组 ----------
 
@@ -937,6 +952,7 @@ class StproPlugin(Star):
                     endpoint,
                     api_key,
                 )
+                self._refresh_alignment_config_options()
                 await self.interaction.remember_models(
                     user_key,
                     models,
@@ -1077,6 +1093,7 @@ class StproPlugin(Star):
 
         try:
             await self.profile_service.remove_profile(record)
+            self._refresh_alignment_config_options()
         except Exception as exc:
             logger.error(f"[stpro] 删除 Profile 失败: {exc}")
             yield event.plain_result(
@@ -1179,6 +1196,41 @@ class StproPlugin(Star):
         yield event.plain_result(message)
 
     # ---------- 辅助 ----------
+
+    def _refresh_alignment_config_options(self) -> None:
+        """把当前 AstrBot 原生配置列表注入插件设置下拉框。"""
+        schema = getattr(self.conf, "schema", None)
+        if not isinstance(schema, dict):
+            return
+        item = schema.get("alignment_config_id")
+        if not isinstance(item, dict):
+            return
+
+        options: list[str] = []
+        labels: list[str] = []
+        try:
+            profiles = self.context.astrbot_config_mgr.get_conf_list()
+        except Exception as exc:
+            logger.warning(f"[stpro] 获取对齐配置下拉列表失败: {exc}")
+            return
+
+        for profile in profiles or []:
+            if isinstance(profile, dict):
+                config_id = str(profile.get("id") or "").strip()
+                name = str(profile.get("name") or config_id).strip()
+            else:
+                config_id = str(getattr(profile, "id", "") or "").strip()
+                name = str(getattr(profile, "name", "") or config_id).strip()
+            if not config_id or config_id in options:
+                continue
+            options.append(config_id)
+            labels.append(f"{name}（{config_id}）" if name != config_id else config_id)
+
+        if "default" not in options:
+            options.insert(0, "default")
+            labels.insert(0, "default（全局默认配置）")
+        item["options"] = options
+        item["labels"] = labels
 
     async def _ensure_help_image(self, *, force: bool = False) -> Path:
         if force or not self.help_image_path.is_file():

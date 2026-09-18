@@ -330,6 +330,20 @@ class FakeModelClient:
         return 8
 
 
+class FakePluginConfig(dict):
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.schema = {
+            "alignment_config_id": {
+                "description": "对齐默认配置",
+                "type": "string",
+                "default": "default",
+                "options": ["default"],
+                "labels": ["default（全局默认配置）"],
+            }
+        }
+
+
 # --------------------------- 测试工具 ---------------------------
 
 PASSED: list[str] = []
@@ -717,6 +731,49 @@ async def test_alignment_config() -> None:
     )
     bad_plugin.store._data = None
     await bad_plugin.terminate()
+
+
+async def test_alignment_config_dropdown() -> None:
+    """插件设置直接使用 AstrBot 当前原生配置列表。"""
+    print("\n[2.2] 对齐配置下拉列表")
+    ctx = FakeContext()
+    ctx.native_configs["business"] = copy.deepcopy(ctx.default_config)
+    ctx.config_names["business"] = "业务配置"
+    ctx.astrbot_config_mgr.abconf_data["business"] = {
+        "name": "业务配置",
+        "path": "abconf_business.json",
+    }
+    config = FakePluginConfig(
+        {
+            "monitor": {"enable": False},
+            "alignment_config_id": "default",
+        }
+    )
+    plugin = StproPlugin(ctx, config)
+    item = config.schema["alignment_config_id"]
+    check(
+        "下拉值来自当前 AstrBot 配置 ID",
+        item["options"] == ["default", "business"],
+        str(item["options"]),
+    )
+    check(
+        "下拉标签同时显示配置名和 ID",
+        item["labels"] == ["default", "业务配置（business）"],
+        str(item["labels"]),
+    )
+
+    ctx.native_configs["later"] = copy.deepcopy(ctx.default_config)
+    ctx.config_names["later"] = "稍后新增"
+    ctx.astrbot_config_mgr.abconf_data["later"] = {
+        "name": "稍后新增",
+        "path": "abconf_later.json",
+    }
+    plugin._refresh_alignment_config_options()
+    check(
+        "刷新后包含新建的 AstrBot 配置",
+        item["options"] == ["default", "business", "later"],
+        str(item["options"]),
+    )
 
 
 async def test_admin_priority() -> None:
@@ -1149,6 +1206,7 @@ async def run_all() -> int:
         test_self_message_ignored,
         test_full_flow,
         test_alignment_config,
+        test_alignment_config_dropdown,
         test_admin_priority,
         test_masking,
         test_endpoint_normalize,

@@ -2,7 +2,7 @@ name: astrbot_plugin_standalone_profile
 display_name: STPRO 独立档案
 desc: 让用户创建 WebUI 可见的独立模型配置文件，并为指定群选择配置。AstrBot 管理员配置始终优先。
 short_desc: WebUI 可管理的群级独立模型配置
-version: v1.1
+version: v1.2
 author: jijiang
 repo: ""
 astrbot_version: ">=4.28,<5"
