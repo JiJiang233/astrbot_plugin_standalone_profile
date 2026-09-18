@@ -1,0 +1,77 @@
+{
+  "monitor": {
+    "description": "后台监控",
+    "type": "object",
+    "hint": "对已创建的档案做定时可用性检查，只读不改配置。",
+    "items": {
+      "enable": {
+        "description": "启用后台监控",
+        "type": "bool",
+        "default": true
+      },
+      "interval_sec": {
+        "description": "监控周期（秒）",
+        "type": "int",
+        "hint": "每个档案每周期最多检查一次，再通知其绑定的群。",
+        "default": 300
+      },
+      "failure_threshold": {
+        "description": "连续失败多少次后判定为异常并通知",
+        "type": "int",
+        "default": 3
+      },
+      "timeout_sec": {
+        "description": "单次检查超时（秒）",
+        "type": "int",
+        "default": 30
+      },
+      "max_concurrency": {
+        "description": "全局并发检查上限",
+        "type": "int",
+        "hint": "避免大量档案同时向外发起请求。",
+        "default": 3
+      }
+    }
+  },
+  "model_cache_ttl_sec": {
+    "description": "模型列表编号有效期（秒）",
+    "type": "int",
+    "hint": "编号只对最近一次成功取得的完整列表有效，且不能跨插件重载使用。",
+    "default": 300
+  },
+  "interaction": {
+    "description": "多轮输入",
+    "type": "object",
+    "items": {
+      "timeout_sec": {
+        "description": "多轮流程超时自动取消（秒）",
+        "type": "int",
+        "default": 300
+      },
+      "max_remote_retries": {
+        "description": "单次流程内允许的远程失败次数",
+        "type": "int",
+        "hint": "达到上限后取消操作并清除临时输入。",
+        "default": 3
+      },
+      "confirm_timeout_sec": {
+        "description": "删除确认码有效期（秒）",
+        "type": "int",
+        "hint": "删除确认是一次性操作，超时比普通多轮流程更短。",
+        "default": 120
+      }
+    }
+  },
+  "reconcile": {
+    "description": "启动与周期对账",
+    "type": "object",
+    "items": {
+      "interval_sec": {
+        "description": "周期对账间隔（秒）",
+        "type": "int",
+        "hint": "管理员在 WebUI 的改动不会触发 Provider Hook，只能靠对账发现。",
+        "default": 600
+      }
+    }
+  }
+}
